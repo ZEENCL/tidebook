@@ -1,34 +1,22 @@
+// FishFactory.cs
+// Factory pattern: turns a FishSpecies (data) into a ready-to-use Fish, including the strategy
+// chosen by the injected resolver. Also pools fish so schools can spawn/despawn cheaply.
+
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace Tidebook
 {
-    public class FishFactory
+    public class FishFactory : IFishFactory
     {
-        // Strategies are stateless, so one shared instance per type is enough.
-        static readonly Dictionary<BiteStrategyType, IBiteStrategy> Strategies = CreateDefaultStrategies();
-
-        static Dictionary<BiteStrategyType, IBiteStrategy> CreateDefaultStrategies()
-        {
-            IBiteStrategy weighted = new WeightedBiteStrategy();
-            Dictionary<BiteStrategyType, IBiteStrategy> map = new Dictionary<BiteStrategyType, IBiteStrategy>();
-            map[BiteStrategyType.Weighted] = weighted;
-            map[BiteStrategyType.Gated] = new GatedBiteStrategy(weighted);   // composition
-            return map;
-        }
-
-        /// <summary>Plug in or replace a strategy without touching the factory's logic.</summary>
-        public static void RegisterStrategy(BiteStrategyType type, IBiteStrategy strategy)
-        {
-            Strategies[type] = strategy;
-        }
-
         readonly Transform poolRoot;
+        readonly IBiteStrategyResolver strategies;
         readonly Dictionary<FishSpecies, Stack<Fish>> pool = new Dictionary<FishSpecies, Stack<Fish>>();
 
-        public FishFactory(Transform poolRoot)
+        public FishFactory(Transform poolRoot, IBiteStrategyResolver strategies)
         {
             this.poolRoot = poolRoot;
+            this.strategies = strategies;
         }
 
         public Fish Create(FishSpecies species, Vector3 position, Bounds wanderArea, float layerY)
@@ -44,7 +32,7 @@ namespace Tidebook
             fish.transform.SetParent(null);
             fish.transform.position = position;
             fish.gameObject.SetActive(true);
-            fish.Init(species, ResolveStrategy(species), wanderArea, layerY, Release);
+            fish.Init(species, strategies.Resolve(species), wanderArea, layerY, Release);
             return fish;
         }
 
@@ -63,13 +51,6 @@ namespace Tidebook
             stack.Push(fish);
         }
 
-        static IBiteStrategy ResolveStrategy(FishSpecies species)
-        {
-            IBiteStrategy strategy;
-            if (Strategies.TryGetValue(species.biteStrategy, out strategy)) return strategy;
-            return Strategies[BiteStrategyType.Weighted];
-        }
-
         static Fish Build(FishSpecies species)
         {
             GameObject go;
@@ -79,7 +60,7 @@ namespace Tidebook
             }
             else
             {
-                // No model yet: a plain capsule on its side is enough for the prototype.
+                // No model yet: a plain capsule is enough for the prototype.
                 go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 go.transform.localScale = new Vector3(0.3f, 0.3f, 0.5f);
                 Collider col = go.GetComponent<Collider>();

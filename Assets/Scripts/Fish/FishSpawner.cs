@@ -1,18 +1,16 @@
+// FishSpawner.cs
+// Population only: keeps a number of fish alive inside this object's WaterZone.
+// The zone's geometry lives in WaterZone, species choice in ISpeciesSelector,
+// fish creation in IFishFactory. Assign Factory / Selector before Start() to swap them.
+
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace Tidebook
 {
-    public class FishSpawner : MonoBehaviour, IWaterZone
+    [RequireComponent(typeof(WaterZone))]
+    public class FishSpawner : MonoBehaviour
     {
-        /// <summary>All zones in the scene. The rod uses this to find which zone a cast landed in.</summary>
-        public static readonly List<FishSpawner> All = new List<FishSpawner>();
-
-        [Header("Zone")]
-        public string spotId = "Bay";
-        public Vector3 areaSize = new Vector3(30f, 0f, 30f);   // only x and z are used
-        public float depth = 6f;
-
         [Header("Population")]
         public List<FishSpecies> species = new List<FishSpecies>();
         public int targetPopulation = 12;
@@ -23,29 +21,30 @@ namespace Tidebook
         public Transform player;               // defaults to the main camera
         public float activeRadius = 80f;       // fish are despawned when the player is farther than this
 
-        public float SurfaceY { get { return transform.position.y; } }
-        public WaterContext Context { get { return WorldState.ContextFor(spotId); } }
+        public IFishFactory Factory { get; set; }
+        public ISpeciesSelector Selector { get; set; }
 
-        public Bounds Area
-        {
-            get { return new Bounds(transform.position + Vector3.down * (depth * 0.5f), new Vector3(areaSize.x, depth, areaSize.z)); }
-        }
-
-        FishFactory factory;
+        WaterZone zone;
         readonly List<Fish> spawned = new List<Fish>();
+        readonly List<FishSpecies> candidates = new List<FishSpecies>();
         float timer;
 
-        void Awake()
+        void Start()
         {
-            GameObject poolRoot = new GameObject("FishPool_" + spotId);
-            factory = new FishFactory(poolRoot.transform);
-        }
+            zone = GetComponent<WaterZone>();
+            if (zone == null) zone = gameObject.AddComponent<WaterZone>();
 
-        void OnEnable() { All.Add(this); }
-        void OnDisable() { All.Remove(this); }
+            if (Factory == null)
+            {
+                GameObject poolRoot = new GameObject("FishPool_" + zone.spotId);
+                Factory = new FishFactory(poolRoot.transform, new BiteStrategyRegistry());
+            }
+            if (Selector == null) Selector = new WeightedSpeciesSelector();
+        }
 
         void Update()
         {
+            if (zone == null) return;
             if (player == null && Camera.main != null) player = Camera.main.transform;
 
             timer -= Time.deltaTime;
@@ -62,7 +61,7 @@ namespace Tidebook
                 return;
             }
 
-            WaterContext ctx = Context;
+            WaterContext ctx = zone.Context;
 
             // Time/weather changed: remove species that can't exist now (never yank a fish that is mid-bite).
             for (int i = spawned.Count - 1; i >= 0; i--)
@@ -70,7 +69,7 @@ namespace Tidebook
                 Fish f = spawned[i];
                 if (!f.IsBusy && !f.Species.CanExistIn(ctx))
                 {
-                    factory.Release(f);
+                    Factory.Release(f);
                     spawned.RemoveAt(i);
                 }
             }
@@ -86,80 +85,34 @@ namespace Tidebook
 
         bool SpawnOne(WaterContext ctx)
         {
-            FishSpecies pick = PickSpecies(ctx);
+            candidates.Clear();
+            for (int i = 0; i < species.Count; i++)
+            {
+                if (species[i] != null && species[i].CanExistIn(ctx)) candidates.Add(species[i]);
+            }
+            if (candidates.Count == 0) return false;
+
+            FishSpecies pick = Selector.Pick(candidates, ctx);
             if (pick == null) return false;
 
-            Bounds area = Area;
-            float y = LayerY(pick.layer);
+            Bounds area = zone.Area;
+            float y = zone.LayerY(pick.layer);
             Vector3 pos = new Vector3(
                 Random.Range(area.min.x, area.max.x),
                 y,
                 Random.Range(area.min.z, area.max.z));
 
-            Fish fish = factory.Create(pick, pos, area, y);
-            spawned.Add(fish);
+            spawned.Add(Factory.Create(pick, pos, area, y));
             return true;
-        }
-
-        FishSpecies PickSpecies(WaterContext ctx)
-        {
-            float total = 0f;
-            for (int i = 0; i < species.Count; i++)
-            {
-                if (species[i] != null && species[i].CanExistIn(ctx)) total += species[i].spawnWeight;
-            }
-            if (total <= 0f) return null;
-
-            float roll = Random.value * total;
-            for (int i = 0; i < species.Count; i++)
-            {
-                FishSpecies s = species[i];
-                if (s == null || !s.CanExistIn(ctx)) continue;
-                roll -= s.spawnWeight;
-                if (roll <= 0f) return s;
-            }
-            return null;
-        }
-
-        public float LayerY(DepthLayer layer)
-        {
-            switch (layer)
-            {
-                case DepthLayer.Top: return SurfaceY - 0.5f;
-                case DepthLayer.Bottom: return SurfaceY - depth + 0.5f;
-                default: return SurfaceY - depth * 0.5f;
-            }
         }
 
         void DespawnAll()
         {
             for (int i = 0; i < spawned.Count; i++)
             {
-                if (spawned[i] != null && spawned[i].gameObject.activeSelf) factory.Release(spawned[i]);
+                if (spawned[i] != null && spawned[i].gameObject.activeSelf) Factory.Release(spawned[i]);
             }
             spawned.Clear();
-        }
-
-        /// <summary>Is this world position inside the zone's horizontal footprint?</summary>
-        public bool Contains(Vector3 worldPos)
-        {
-            Vector3 d = worldPos - transform.position;
-            return Mathf.Abs(d.x) <= areaSize.x * 0.5f && Mathf.Abs(d.z) <= areaSize.z * 0.5f;
-        }
-
-        public static FishSpawner FindAt(Vector3 worldPos)
-        {
-            for (int i = 0; i < All.Count; i++)
-            {
-                if (All[i].Contains(worldPos)) return All[i];
-            }
-            return null;
-        }
-
-        void OnDrawGizmosSelected()
-        {
-            Gizmos.color = new Color(0.2f, 0.6f, 1f, 0.6f);
-            Gizmos.DrawWireCube(Area.center, Area.size);
         }
     }
 }

@@ -1,3 +1,11 @@
+// FishSpecies.cs
+// Fish are DATA: one ScriptableObject asset per species.
+// Create via: Assets > Create > Tidebook > Fish Species
+//
+// Soft-preference model:
+//   - each factor has a preferred value + a weight (weight 0 = fish doesn't care)
+//   - 'required' turns a factor into a hard gate (enforced by GatedBiteStrategy)
+
 using UnityEngine;
 
 namespace Tidebook
@@ -6,7 +14,7 @@ namespace Tidebook
     public struct FactorWeight
     {
         [Min(0f)] public float weight;   // 0 = ignored
-        public bool required;            // hard gate (only enforced for rare/legendary fish)
+        public bool required;            // hard gate (only enforced for Gated species)
     }
 
     [System.Serializable]

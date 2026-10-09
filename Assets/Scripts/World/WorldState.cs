@@ -1,3 +1,7 @@
+// WorldState.cs
+// Minimal day/night clock + weather holder. Put ONE of these in the scene.
+// Change 'weather' in the Inspector while playing to test weather-gated fish.
+
 using UnityEngine;
 
 namespace Tidebook
