@@ -1,6 +1,6 @@
 // Fish.cs
 // The Unity-facing part of a fish: lifecycle, pooling hook, and the small role interfaces
-// other systems use (IBaitReactive, IHookableFish). All behaviour lives in FishBrain + FishStates,
+// other systems use (IBaitReactive, IHookableFish). All behaviour lives in FishBrain + its state classes,
 // all movement in FishMotor.
 
 using System.Collections.Generic;
