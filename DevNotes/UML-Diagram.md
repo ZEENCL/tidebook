@@ -1,62 +1,212 @@
 # Tidebook - UML Diagram
 
-## 1. Module map
+This document reflects the current runtime structure in the Unity project as it exists in the codebase today. It focuses on the modules that are actually wired together: world/spot data, bait matching, fish spawning and behavior, the rod state machine, and catch outcome listeners.
+
+## 1. Runtime module map
 
 ```mermaid
 flowchart LR
-    subgraph Core["Core"]
-        Types["FishingTypes<br/>(enums, WaterContext)"]
-        SM["StateMachine"]
-        BaitB["Bait + BaitBuilder"]
-        Ifaces["Interfaces (25)"]
-        Defaults["DefaultServices"]
+    subgraph World["World + local conditions"]
+        WorldState["WorldState<br/>hour / weather / spot context"]
+        WaterZone["WaterZone<br/>geometry + Context"]
+        Lookup["WaterZoneLookup<br/>FindAt()"]
     end
 
-    subgraph FishM["Fish"]
-        Fish["Fish (Unity shell)"]
-        Brain["FishBrain + FishStates"]
-        Motor["FishMotor"]
-        Spawner["FishSpawner"]
+    subgraph Bait["Bait + matching"]
+        BaitData["Bait / BaitBuilder"]
+        Pref["PreferenceProfile<br/>FactorWeight"]
+        Match["MatchFactors<br/>weighted factor rules"]
+        Strategies["BiteStrategyRegistry<br/>Weighted / Gated"]
+    end
+
+    subgraph Fish["Fish module"]
+        FishSpawner["FishSpawner"]
         Factory["FishFactory"]
-        Strat["BiteStrategies + MatchFactors"]
-        Species["FishSpecies (data)"]
+        Selector["WeightedSpeciesSelector"]
+        Fish["Fish<br/>MonoBehaviour"]
+        Brain["FishBrain"]
+        Motor["FishMotor"]
+        Species["FishSpecies<br/>ScriptableObject"]
+        Styles["FightStyle<br/>IPullPattern"]
     end
 
-    subgraph RodM["Rod"]
-        Rod["RodController<br/>(composition root)"]
-        RodSF["RodStateFactory"]
-        RodStates["RodStates (7)"]
-        Session["RodSession"]
+    subgraph Rod["Rod module"]
+        RodController["RodController"]
+        Session["RodSession<br/>Phase / Message / Meters / Target"]
+        FactoryState["RodStateFactory"]
+        States["RodState subclasses<br/>Aiming / Charging / Waiting / BiteWindow / Reeling / Resolved"]
         Hud["RodHud"]
-        Services["ZoneCastResolver, PrimitiveBobber,<br/>PlayerWallet, InspectorBaitLoadout"]
+        Input["LegacyRodInput"]
+        Bobber["PrimitiveBobber"]
+        Wallet["PlayerWallet"]
+        Baits["InspectorBaitLoadout"]
     end
 
-    subgraph WorldM["World"]
-        Zone["WaterZone"]
-        WS["WorldState"]
+    subgraph Catch["Outcome pipeline"]
+        CatchReporter["CatchReporter<br/>observer list"]
+        Listeners["CatchRewardListener<br/>FishOutcomeListener<br/>CatchMessageListener"]
     end
 
-    Rod --> RodSF --> RodStates
-    RodStates --> Session
-    Rod --> Services
-    Rod --> Hud
-    Hud -. reads .-> Session
-    RodStates -. "role interfaces" .-> Fish
-    Spawner --> Factory --> Fish
-    Spawner --> Zone
-    Fish --> Brain --> Motor
-    Brain --> Strat --> Species
-    Zone --> WS
-    Services -. uses .-> Zone
-    RodM -. depends on .-> Ifaces
-    FishM -. depends on .-> Ifaces
-    Fish --> SM
-    RodStates --> SM
+    WorldState --> WaterZone
+    WaterZone --> Lookup
+    WaterZone --> FishSpawner
+
+    FishSpawner --> Factory
+    FishSpawner --> Selector
+    Factory --> Fish
+    Fish --> Brain
+    Brain --> Motor
+    Fish --> Species
+    Species --> Pref
+    Species --> Styles
+    Species --> Strategies
+    Strategies --> Match
+    Baits --> BaitData
+    Fish --> BaitData
+
+    RodController --> Session
+    RodController --> FactoryState
+    RodController --> Input
+    RodController --> Bobber
+    RodController --> Wallet
+    RodController --> Baits
+    AssemblyState["StateMachine"] --- RodController
+    FactoryState --> States
+    States --> Session
+    States --> Input
+    States --> Bobber
+    States --> Baits
+    States --> CatchReporter
+
+    RodController --> Hud
+    Hud --> Session
+    Hud --> Wallet
+
+    CatchReporter --> Listeners
+    Listeners --> Wallet
+    Listeners --> Session
 ```
 
 ---
 
-## 2. Fish behaviour (Unity shell, brain, motor, states)
+## 2. Rod controller and state wiring
+
+```mermaid
+classDiagram
+    direction LR
+
+    class RodController {
+        <<MonoBehaviour>>
+        +Camera cam
+        +CastSettings cast
+        +ReelSettings reel
+        +IRodInput InputSource
+        +IFishRegistry Registry
+        +IWaterZones Zones
+        +IBaitProvider BaitProvider
+        +IBobberView Bobber
+        +IWallet Wallet
+        +IRodStatus Status
+        +ICatchEvents CatchEvents
+        +Start()
+        +Update()
+    }
+
+    class StateMachine {
+        +IState Current
+        +ChangeState(IState state)
+        +Tick(float dt)
+    }
+
+    class RodSession {
+        +RodPhase Phase
+        +string Message
+        +RodMeters Meters
+        +Bait Bait
+        +Vector3 BaitPosition
+        +WaterContext Water
+        +IHookableFish Target
+        +RaiseCue(RodCue cue)
+    }
+
+    class RodStateFactory {
+        +Aiming() IState
+        +Charging() IState
+        +Settling() IState
+        +Waiting() IState
+        +BiteWindow() IState
+        +Reeling() IState
+        +Resolved(CatchResult r) IState
+    }
+
+    class IRodStateFactory {
+        <<interface>>
+    }
+
+    class IRodStatus {
+        <<interface>>
+        +RodPhase Phase
+        +string Message
+        +IReadOnlyList~IMeterView~ Meters
+        +IFishInfo Target
+    }
+
+    class RodHud {
+        <<MonoBehaviour>>
+        +Bind(session, wallet, baits)
+    }
+
+    class CatchReporter {
+        +Subscribe(ICatchListener listener)
+        +Publish(CatchReport report)
+    }
+
+    class LegacyRodInput
+    class StaticFishRegistry
+    class WaterZoneLookup
+    class InspectorBaitLoadout
+    class PrimitiveBobber
+    class PlayerWallet
+    class ZoneCastResolver
+
+    RodController *-- StateMachine
+    RodController *-- RodSession
+    RodController --> RodStateFactory : creates
+    RodController --> IRodInput
+    RodController --> IFishRegistry
+    RodController --> IWaterZones
+    RodController --> IBaitProvider
+    RodController --> IBobberView
+    RodController --> IWallet
+    RodController --> ICatchEvents
+    RodController --> RodHud : optional bind
+
+    RodSession ..|> IRodStatus
+    RodStateFactory ..|> IRodStateFactory
+    RodStateFactory --> IRodInput
+    RodStateFactory --> ICastLandingResolver
+    RodStateFactory --> IBaitProvider
+    RodStateFactory --> IBobberView
+    RodStateFactory --> IFishRegistry
+    RodStateFactory --> ICatchPublisher
+
+    LegacyRodInput ..|> IRodInput
+    StaticFishRegistry ..|> IFishRegistry
+    WaterZoneLookup ..|> IWaterZones
+    InspectorBaitLoadout ..|> IBaitProvider
+    PrimitiveBobber ..|> IBobberView
+    PlayerWallet ..|> IWallet
+    ZoneCastResolver ..|> ICastLandingResolver
+
+    RodHud --> IRodStatus
+    RodHud --> IWalletView
+    CatchReporter ..|> ICatchPublisher
+    CatchReporter ..|> ICatchEvents
+```
+
+---
+
+## 3. Fish lifecycle and gameplay behavior
 
 ```mermaid
 classDiagram
@@ -64,18 +214,22 @@ classDiagram
 
     class Fish {
         <<MonoBehaviour>>
-        +List~Fish~ Active$
-        +FishSpecies Species
+        +static List~Fish~ Active
         +float detectionRadius
         +float reachDistance
+        +FishSpecies Species
         +event Bit
         +bool IsBusy
-        +Init(species, strategy, area, layerY, release)
+        +Init(species, strategy, area, layerY, releaseCallback)
         +TryNotice(bait, pos, ctx) bool
-        +Hook() bool
         +LoseInterest()
+        +Hook() bool
         +Escape()
         +Catch()
+        +DisplayName
+        +StateName
+        +MatchRatio
+        +BiteTimeLeft
     }
 
     class FishBrain {
@@ -125,16 +279,35 @@ classDiagram
 
     class IBaitReactive {
         <<interface>>
-        +event Bit
         +TryNotice(bait, pos, ctx) bool
         +LoseInterest()
+        +event Bit
     }
+
     class IHookableFish {
         <<interface>>
+        +bool IsBiting
+        +bool Hook()
+    }
+
+    class IFishInfo {
+        <<interface>>
+        +string DisplayName
+        +string StateName
+        +float MatchRatio
+        +float BiteTimeLeft
+    }
+
+    class IFightTarget {
+        <<interface>>
+        +float FightStrength
+        +IPullPattern CreatePullPattern()
     }
 
     Fish ..|> IBaitReactive
     Fish ..|> IHookableFish
+    Fish ..|> IFishInfo
+    Fish ..|> IFightTarget
     Fish *-- FishBrain : brain
     FishBrain *-- StateMachine : Machine
     FishBrain *-- FishMotor : Motor
@@ -151,7 +324,7 @@ classDiagram
 
 ---
 
-## 3. Spawning, factory and species selection
+## 4. Spawning, factory, registry, and world placement
 
 ```mermaid
 classDiagram
@@ -167,20 +340,38 @@ classDiagram
         +float activeRadius
         +IFishFactory Factory
         +ISpeciesSelector Selector
+        +Start()
+        +Update()
     }
 
     class WaterZone {
         <<MonoBehaviour>>
-        +List~WaterZone~ All$
+        +static List~WaterZone~ All
         +string spotId
         +Vector3 areaSize
         +float depth
         +float SurfaceY
         +WaterContext Context
         +Bounds Area
-        +LayerY(DepthLayer layer) float
-        +Contains(Vector3 pos) bool
-        +FindAt(Vector3 pos)$ WaterZone
+        +float LayerY(DepthLayer layer)
+        +bool Contains(Vector3 pos)
+        +static WaterZone FindAt(Vector3 worldPos)
+    }
+
+    class WorldState {
+        <<MonoBehaviour>>
+        +static WorldState Instance
+        +float hour
+        +float dayLengthSeconds
+        +bool advanceTime
+        +Weather weather
+        +TimeOfDay CurrentTime
+        +static WaterContext ContextFor(string spotId)
+    }
+
+    class IWaterZones {
+        <<interface>>
+        +IWaterZone FindAt(Vector3 worldPos)
     }
 
     class IWaterZone {
@@ -191,33 +382,23 @@ classDiagram
 
     class IFishFactory {
         <<interface>>
-        +Create(species, pos, area, layerY) Fish
-        +Release(Fish fish)
+        +Fish Create(species, pos, area, layerY)
+        +void Release(Fish fish)
     }
 
     class FishFactory {
         -Dictionary pool
-        +Create(species, pos, area, layerY) Fish
-        +Release(Fish fish)
-    }
-
-    class IBiteStrategyResolver {
-        <<interface>>
-        +Resolve(FishSpecies species) IBiteStrategy
-    }
-
-    class BiteStrategyRegistry {
-        +Register(BiteStrategyType t, IBiteStrategy s)
-        +Resolve(FishSpecies species) IBiteStrategy
+        +Fish Create(species, pos, area, layerY)
+        +void Release(Fish fish)
     }
 
     class ISpeciesSelector {
         <<interface>>
-        +Pick(candidates, ctx) FishSpecies
+        +FishSpecies Pick(candidates, ctx)
     }
 
     class WeightedSpeciesSelector {
-        +Pick(candidates, ctx) FishSpecies
+        +FishSpecies Pick(candidates, ctx)
     }
 
     class FishSpecies {
@@ -230,94 +411,63 @@ classDiagram
         +float spawnWeight
         +float swimSpeed
         +float fightStrength
-        +BiteStrategyType biteStrategy
+        +FightStyle fightStyle
         +GameObject prefab
-        +CanExistIn(WaterContext ctx) bool
+        +PreferenceProfile profile
+        +bool CanExistIn(WaterContext ctx)
+        +IPullPattern CreatePullPattern()
     }
 
-    class Fish {
-        <<MonoBehaviour>>
+    class WaterContext {
+        <<struct>>
+        +TimeOfDay time
+        +Weather weather
+        +string spotId
     }
+
+    class Fish { <<MonoBehaviour>> }
 
     FishSpawner ..> WaterZone : requires
     WaterZone ..|> IWaterZone
-    FishSpawner o-- FishSpecies : species list
+    WorldState --> WaterContext : produces
     FishSpawner --> IFishFactory : Factory
     FishSpawner --> ISpeciesSelector : Selector
+    FishSpawner --> FishSpecies : candidate list
     FishFactory ..|> IFishFactory
-    FishFactory --> IBiteStrategyResolver : resolves strategy
-    FishFactory ..> Fish : builds and pools
-    BiteStrategyRegistry ..|> IBiteStrategyResolver
+    FishFactory ..> Fish : builds + pools
     WeightedSpeciesSelector ..|> ISpeciesSelector
-    ISpeciesSelector ..> FishSpecies : picks
+    ISpeciesSelector ..> FishSpecies : chooses
+    Fish --> FishSpecies : data + visuals
 ```
 
 ---
 
-## 4. Bite strategy, match factors and species data
+## 5. Bait matching and bite evaluation
 
 ```mermaid
 classDiagram
     direction LR
 
-    class IBiteStrategy {
-        <<interface>>
-        +Evaluate(PreferenceProfile p, Bait bait, WaterContext ctx) BiteEvaluation
-    }
-
-    class WeightedBiteStrategy {
-        -IReadOnlyList factors
-        +Evaluate(p, bait, ctx) BiteEvaluation
-    }
-
-    class GatedBiteStrategy {
-        -IBiteStrategy inner
-        -IReadOnlyList factors
-        +Evaluate(p, bait, ctx) BiteEvaluation
-    }
-
-    class IMatchFactor {
-        <<interface>>
-        +WeightFor(PreferenceProfile p) FactorWeight
-        +Matches(p, bait, ctx) bool
-    }
-
-    class MatchFactor {
-        -Func weight
-        -Func matches
-    }
-
-    class MatchFactors {
-        <<static>>
-        +IReadOnlyList Default$
-    }
-
-    class BiteEvaluation {
-        <<struct>>
-        +bool eligible
-        +float matchRatio
-    }
-
-    class BiteStrategyType {
-        <<enumeration>>
-        Weighted
-        Gated
-    }
-
     class FishSpecies {
         <<ScriptableObject>>
         +BiteStrategyType biteStrategy
         +PreferenceProfile profile
+        +FightStyle fightStyle
     }
 
     class PreferenceProfile {
         +Buoyancy buoyancy
+        +FactorWeight buoyancyW
         +BodyShape shape
+        +FactorWeight shapeW
         +ColorPattern color
+        +FactorWeight colorW
         +SwimPattern swim
+        +FactorWeight swimW
         +TimeOfDay time
+        +FactorWeight timeW
         +Weather weather
-        +FactorWeight buoyancyW to weatherW
+        +FactorWeight weatherW
     }
 
     class FactorWeight {
@@ -327,7 +477,7 @@ classDiagram
     }
 
     class Bait {
-        <<immutable>>
+        <<sealed>>
         +Buoyancy Buoyancy
         +BodyShape Shape
         +ColorPattern Color
@@ -342,16 +492,68 @@ classDiagram
         +Build() Bait
     }
 
+    class IBiteStrategy {
+        <<interface>>
+        +Evaluate(PreferenceProfile p, Bait bait, WaterContext ctx) BiteEvaluation
+    }
+
+    class WeightedBiteStrategy {
+        -IReadOnlyList~IMatchFactor~ factors
+        +Evaluate(p, bait, ctx) BiteEvaluation
+    }
+
+    class GatedBiteStrategy {
+        -IBiteStrategy inner
+        -IReadOnlyList~IMatchFactor~ factors
+        +Evaluate(p, bait, ctx) BiteEvaluation
+    }
+
+    class IMatchFactor {
+        <<interface>>
+        +FactorWeight WeightFor(PreferenceProfile p)
+        +bool Matches(PreferenceProfile p, Bait bait, WaterContext ctx)
+    }
+
+    class MatchFactor {
+        +WeightFor(profile) FactorWeight
+        +Matches(profile, bait, ctx) bool
+    }
+
+    class MatchFactors {
+        <<static>>
+        +IReadOnlyList Default
+    }
+
+    class BiteEvaluation {
+        <<struct>>
+        +bool eligible
+        +float matchRatio
+    }
+
+    class BiteStrategyType {
+        <<enumeration>>
+        Weighted
+        Gated
+    }
+
+    class WaterContext {
+        <<struct>>
+        +TimeOfDay time
+        +Weather weather
+        +string spotId
+    }
+
     WeightedBiteStrategy ..|> IBiteStrategy
     GatedBiteStrategy ..|> IBiteStrategy
-    GatedBiteStrategy o-- IBiteStrategy : wraps (inner)
-    WeightedBiteStrategy --> IMatchFactor : loops over
-    GatedBiteStrategy --> IMatchFactor : checks required
+    GatedBiteStrategy o-- IBiteStrategy : delegates to inner
+    WeightedBiteStrategy --> IMatchFactor : iterates all factors
+    GatedBiteStrategy --> IMatchFactor : checks required gates
     MatchFactor ..|> IMatchFactor
     MatchFactors o-- MatchFactor : Default list
     IBiteStrategy ..> BiteEvaluation : returns
     IBiteStrategy ..> PreferenceProfile : reads
     IBiteStrategy ..> Bait : reads
+    IBiteStrategy ..> WaterContext : reads
     FishSpecies *-- PreferenceProfile : profile
     FishSpecies --> BiteStrategyType
     PreferenceProfile *-- FactorWeight
@@ -360,174 +562,7 @@ classDiagram
 
 ---
 
-## 5. Fish role interfaces (Interface Segregation)
-
-```mermaid
-classDiagram
-    direction TB
-
-    class IBaitReactive {
-        <<interface>>
-        +event Bit
-        +TryNotice(bait, pos, ctx) bool
-        +LoseInterest()
-    }
-    class IBiteTarget {
-        <<interface>>
-        +bool IsBiting
-        +Hook() bool
-    }
-    class IFightTarget {
-        <<interface>>
-        +float FightStrength
-        +int Reward
-        +Escape()
-        +Catch()
-    }
-    class IFishInfo {
-        <<interface>>
-        +string DisplayName
-        +string StateName
-        +float MatchRatio
-        +float BiteTimeLeft
-    }
-    class IHookableFish {
-        <<interface>>
-    }
-    class Fish {
-        <<MonoBehaviour>>
-    }
-    class WaitingState
-    class BiteWindowState
-    class ReelingState
-    class RodHud
-
-    IBiteTarget <|-- IHookableFish
-    IFightTarget <|-- IHookableFish
-    IFishInfo <|-- IHookableFish
-    Fish ..|> IBaitReactive
-    Fish ..|> IHookableFish
-
-    WaitingState --> IBaitReactive : notices bait
-    BiteWindowState --> IBiteTarget : hooks
-    ReelingState --> IFightTarget : fights
-    ReelingState --> IFishInfo : name for message
-    RodHud --> IFishInfo : debug readout
-```
-
----
-
-## 6. Rod wiring (composition root, factory, injected services)
-
-```mermaid
-classDiagram
-    direction LR
-
-    class RodController {
-        <<MonoBehaviour>>
-        +Camera cam
-        +CastSettings cast
-        +ReelSettings reel
-        +IRodInput InputSource
-        +IFishRegistry Registry
-        +IWaterZones Zones
-        +IBaitProvider BaitProvider
-        +IBobberView Bobber
-        +IWallet Wallet
-        +IRodStatus Status
-    }
-
-    class RodStateFactory {
-        +Aiming() IState
-        +Charging() IState
-        +Settling() IState
-        +Waiting() IState
-        +BiteWindow() IState
-        +Reeling() IState
-        +Resolved(CatchResult r) IState
-    }
-
-    class IRodStateFactory {
-        <<interface>>
-    }
-
-    class RodSession {
-        +RodPhase Phase
-        +string Message
-        +float Power
-        +float Tension
-        +float ReelProgress
-        +float BandHalfWidth
-        +Bait Bait
-        +Vector3 BaitPosition
-        +WaterContext Water
-        +IHookableFish Target
-    }
-
-    class IRodStatus {
-        <<interface>>
-        +RodPhase Phase
-        +string Message
-        +float Power
-        +float Tension
-        +float ReelProgress
-        +IFishInfo Target
-    }
-
-    class RodHud {
-        <<MonoBehaviour>>
-        +Bind(status, wallet, baits)
-    }
-
-    class StateMachine
-
-    class ICastLandingResolver { <<interface>> }
-    class ZoneCastResolver
-    class IBobberView { <<interface>> }
-    class PrimitiveBobber
-    class IBaitProvider { <<interface>> }
-    class InspectorBaitLoadout { <<MonoBehaviour>> }
-    class IWallet { <<interface>> }
-    class IWalletView { <<interface>> }
-    class PlayerWallet
-    class IFishRegistry { <<interface>> }
-    class StaticFishRegistry
-    class IWaterZones { <<interface>> }
-    class WaterZoneLookup
-    class IRodInput { <<interface>> }
-    class LegacyRodInput
-
-    RodController *-- StateMachine
-    RodController *-- RodSession
-    RodController ..> RodStateFactory : creates
-    RodStateFactory ..|> IRodStateFactory
-    RodSession ..|> IRodStatus
-    RodController --> IRodStatus : exposes
-    RodController ..> RodHud : Bind()
-    RodHud --> IRodStatus
-    RodHud --> IWalletView
-
-    RodController --> IRodInput
-    RodController --> IFishRegistry
-    RodController --> IWaterZones
-    RodController --> IBaitProvider
-    RodController --> IBobberView
-    RodController --> IWallet
-    RodController ..> ICastLandingResolver : creates
-
-    LegacyRodInput ..|> IRodInput
-    StaticFishRegistry ..|> IFishRegistry
-    WaterZoneLookup ..|> IWaterZones
-    InspectorBaitLoadout ..|> IBaitProvider
-    PrimitiveBobber ..|> IBobberView
-    PlayerWallet ..|> IWallet
-    ZoneCastResolver ..|> ICastLandingResolver
-    IWallet --|> IWalletView
-```
-
----
-
-## 7. Rod states and what each one depends on (Interface Segregation)
+## 6. Rod state machine and shared cast/session data
 
 ```mermaid
 classDiagram
@@ -548,29 +583,79 @@ classDiagram
     class ReelingState
     class ResolvedState
 
-    class ICastInput {
-        <<interface>>
-        +ChargePressed
-        +ChargeReleased
-        +CancelPressed
+    class RodSession {
+        +RodMeters Meters
+        +Bait Bait
+        +Vector3 BaitPosition
+        +WaterContext Water
+        +IHookableFish Target
+        +string Message
+        +RodPhase Phase
+        +event Cue
+        +RaiseCue(RodCue cue)
     }
-    class IHookInput {
-        <<interface>>
-        +HookPressed
+
+    class RodMeters {
+        +IReadOnlyList~IMeterView~ Items
+        +Clear()
+        +Set(label, value)
+        +Set(label, value, bandMin, bandMax)
     }
-    class IReelInput {
-        <<interface>>
-        +ReelHeld
+
+    class Meter {
+        +string Label
+        +float Value
+        +bool HasBand
+        +float BandMin
+        +float BandMax
     }
+
     class IRodInput {
         <<interface>>
     }
 
-    class ICastLandingResolver { <<interface>> }
-    class IBaitProvider { <<interface>> }
-    class IBobberView { <<interface>> }
-    class IFishRegistry { <<interface>> }
-    class IWallet { <<interface>> }
+    class ICastInput {
+        <<interface>>
+        +bool ChargePressed
+        +bool ChargeReleased
+        +bool CancelPressed
+    }
+
+    class IHookInput {
+        <<interface>>
+        +bool HookPressed
+    }
+
+    class IReelInput {
+        <<interface>>
+        +bool ReelHeld
+    }
+
+    class ICastLandingResolver {
+        <<interface>>
+        +TryResolve(float power, out Vector3 landing, out IWaterZone zone) bool
+    }
+
+    class IBaitProvider {
+        <<interface>>
+        +Bait BuildBait()
+    }
+
+    class IBobberView {
+        <<interface>>
+        +Show(Vector3 pos)
+        +Hide()
+    }
+
+    class IFishRegistry {
+        <<interface>>
+        +IReadOnlyList~IBaitReactive~ ActiveFish
+    }
+
+    class IWallet {
+        <<interface>>
+    }
+
     class CastSettings
     class ReelSettings
 
@@ -586,6 +671,9 @@ classDiagram
     IHookInput <|-- IRodInput
     IReelInput <|-- IRodInput
 
+    RodSession *-- RodMeters
+    RodMeters o-- Meter
+
     AimingState --> ICastInput
     ChargingState --> ICastInput
     ChargingState --> CastSettings
@@ -598,8 +686,100 @@ classDiagram
     BiteWindowState --> IHookInput
     ReelingState --> IReelInput
     ReelingState --> ReelSettings
-    ReelingState --> IWallet
     ResolvedState --> IBobberView
+```
+
+---
+
+## 7. Catch outcomes and UI listeners
+
+```mermaid
+classDiagram
+    direction LR
+
+    class RodController {
+        <<MonoBehaviour>>
+        +ICatchEvents CatchEvents
+        +IRodStatus Status
+    }
+
+    class CatchReporter {
+        +Subscribe(ICatchListener listener)
+        +Publish(CatchReport report)
+    }
+
+    class CatchReport {
+        +CatchResult Result
+        +Fish Fish
+        +float Reward
+        +string Message
+    }
+
+    class ICatchPublisher {
+        <<interface>>
+        +Publish(CatchReport report)
+    }
+
+    class ICatchEvents {
+        <<interface>>
+        +Subscribe(ICatchListener listener)
+    }
+
+    class ICatchListener {
+        <<interface>>
+        +OnCatchResolved(CatchReport report)
+    }
+
+    class CatchRewardListener {
+        +OnCatchResolved(report)
+    }
+
+    class FishOutcomeListener {
+        +OnCatchResolved(report)
+    }
+
+    class CatchMessageListener {
+        +OnCatchResolved(report)
+    }
+
+    class RodHud {
+        <<MonoBehaviour>>
+        +Bind(session, wallet, baits)
+    }
+
+    class RodSession {
+        +RodPhase Phase
+        +string Message
+        +RodMeters Meters
+        +IHookableFish Target
+    }
+
+    class PlayerWallet {
+        +Spend()
+        +AddCoins()
+    }
+
+    class Fish {
+        <<MonoBehaviour>>
+        +Escape()
+        +Catch()
+    }
+
+    RodController --> CatchReporter : creates
+    CatchReporter ..|> ICatchPublisher
+    CatchReporter ..|> ICatchEvents
+    CatchReporter --> ICatchListener : notifies in subscription order
+    CatchRewardListener ..|> ICatchListener
+    FishOutcomeListener ..|> ICatchListener
+    CatchMessageListener ..|> ICatchListener
+
+    RodController --> RodHud : optional UI
+    RodHud --> RodSession : reads phase/message/target/meters
+    RodHud --> IWalletView : displays wallet state
+
+    CatchRewardListener --> PlayerWallet : pays rewards
+    FishOutcomeListener --> Fish : escapes / catches / resolves
+    CatchMessageListener --> RodSession : writes status messages
 ```
 
 ---
@@ -610,33 +790,32 @@ classDiagram
 stateDiagram-v2
     [*] --> Aiming
     Aiming --> Charging : LMB down
-    Charging --> Aiming : RMB cancel, or cast outside a zone
-    Charging --> Settling : LMB up, lands in a zone
-    Settling --> Waiting : settle timer ends
-    Settling --> Resolved : RMB, Retrieved
-    Waiting --> BiteWindow : a fish bites
-    Waiting --> Resolved : RMB, Retrieved
-    BiteWindow --> Reeling : click in time, fish hooked
-    BiteWindow --> Resolved : too slow, Missed
-    Reeling --> Resolved : Caught, Snapped or Escaped
-    Resolved --> Aiming : after 1.5s
+    Charging --> Aiming : RMB cancel or invalid cast
+    Charging --> Settling : release and cast lands in a zone
+    Settling --> Waiting : timer completes
+    Settling --> Resolved : RMB / retrieved
+    Waiting --> BiteWindow : fish notices bait and bites
+    Waiting --> Resolved : RMB / retrieved
+    BiteWindow --> Reeling : click while target is biting
+    BiteWindow --> Resolved : bite window expires / fish missed
+    Reeling --> Resolved : caught, snapped, escaped, or missed
+    Resolved --> Aiming : after resolve period
 ```
 
 ---
 
-## 9. Fish state flow (one instance per spawned fish)
+## 9. Fish state flow
 
 ```mermaid
 stateDiagram-v2
     [*] --> Wander
-    Wander --> Curious : bait noticed, gates pass, MatchRatio above 0
-    Curious --> Interested : timer ends, shorter with better match
-    Interested --> Biting : bite roll succeeds at the bait
-    Interested --> Wander : gave up, 5s cooldown
-    Biting --> Hooked : player clicks inside bite window
-    Biting --> Wander : window expired, 8s cooldown
-    Curious --> Wander : LoseInterest, bait removed
-    Interested --> Wander : LoseInterest, bait removed
-    Hooked --> Wander : Escape, 8s cooldown
-    Hooked --> [*] : Catch, returned to pool
+    Wander --> Curious : bait noticed and evaluated as eligible
+    Curious --> Interested : attention timer ends
+    Interested --> Biting : bite roll succeeds
+    Interested --> Wander : lose interest / cooldown
+    Curious --> Wander : lose interest / bait removed
+    Biting --> Hooked : player clicks within window
+    Biting --> Wander : window expires / cooldown
+    Hooked --> Wander : escape / cooldown
+    Hooked --> [*] : catch, returned to pool
 ```
