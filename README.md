@@ -224,7 +224,7 @@ tidebook/
 ### Run the project
 
 ```bash
-git clone https://github.com/<your-username>/tidebook.git
+git clone https://github.com/<ZEENCL>/tidebook.git
 ```
 
 1. Open **Unity Hub** → **Add** → select the cloned `tidebook` folder.
