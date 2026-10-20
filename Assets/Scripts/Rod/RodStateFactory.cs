@@ -15,11 +15,12 @@ namespace Tidebook
         readonly IBaitProvider baits;
         readonly IBobberView bobber;
         readonly IFishRegistry registry;
-        readonly IWallet wallet;
+        readonly ICatchPublisher catches;
 
         public RodStateFactory(StateMachine machine, RodSession session, IRodInput input,
                                CastSettings cast, ReelSettings reel, ICastLandingResolver resolver,
-                               IBaitProvider baits, IBobberView bobber, IFishRegistry registry, IWallet wallet)
+                               IBaitProvider baits, IBobberView bobber, IFishRegistry registry,
+                               ICatchPublisher catches)
         {
             this.machine = machine;
             this.session = session;
@@ -30,7 +31,7 @@ namespace Tidebook
             this.baits = baits;
             this.bobber = bobber;
             this.registry = registry;
-            this.wallet = wallet;
+            this.catches = catches;
         }
 
         public IState Aiming() { return new AimingState(session, machine, this, input); }
@@ -43,8 +44,8 @@ namespace Tidebook
 
         public IState BiteWindow() { return new BiteWindowState(session, machine, this, input); }
 
-        public IState Reeling() { return new ReelingState(session, machine, this, input, reel, wallet); }
+        public IState Reeling() { return new ReelingState(session, machine, this, input, reel); }
 
-        public IState Resolved(CatchResult result) { return new ResolvedState(session, machine, this, bobber, result); }
+        public IState Resolved(CatchResult result) { return new ResolvedState(session, machine, this, bobber, catches, result); }
     }
 }

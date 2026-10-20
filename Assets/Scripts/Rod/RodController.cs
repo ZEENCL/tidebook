@@ -1,9 +1,10 @@
 // RodController.cs
 // Composition root for the rod: creates the default services, wires them into the state factory,
-// and ticks the state machine. It holds no gameplay logic of its own.
+// subscribes the default catch listeners, and ticks the state machine. It holds no gameplay logic.
 //
 // Every dependency is an interface with a sensible default. To swap one (new Input System, a real
 // bait-builder UI, a model for the bobber...) assign your own before Start().
+// Other systems (Fish Index, achievements, audio) can react to outcomes through CatchEvents.
 
 using UnityEngine;
 
@@ -31,8 +32,12 @@ namespace Tidebook
         /// <summary>Read-only view of the rod for UI.</summary>
         public IRodStatus Status { get { return session; } }
 
+        /// <summary>Subscribe here to react when a cast is resolved (caught, snapped, missed...).</summary>
+        public ICatchEvents CatchEvents { get { return catches; } }
+
         readonly StateMachine machine = new StateMachine();
         readonly RodSession session = new RodSession();
+        readonly CatchReporter catches = new CatchReporter();
 
         void Start()
         {
@@ -56,9 +61,14 @@ namespace Tidebook
                 BaitProvider = loadout;
             }
 
+            // Default reactions to a resolved cast (order matters: pay first, then release the fish, then message).
+            catches.Subscribe(new CatchRewardListener(Wallet));
+            catches.Subscribe(new FishOutcomeListener());
+            catches.Subscribe(new CatchMessageListener(session));
+
             ICastLandingResolver resolver = new ZoneCastResolver(cam.transform, Zones, cast);
             RodStateFactory states = new RodStateFactory(
-                machine, session, InputSource, cast, reel, resolver, BaitProvider, Bobber, Registry, Wallet);
+                machine, session, InputSource, cast, reel, resolver, BaitProvider, Bobber, Registry, catches);
 
             machine.ChangeState(states.Aiming());
 

@@ -22,6 +22,7 @@ MonoBehaviour:
   biteStrategy: 0
   swimSpeed: 1.5
   fightStrength: 0.204
+  fightStyle: {fileID: 11400000, guid: 713b13f56e5843a4698084f713d35747, type: 2}
   prefab: {fileID: 0}
   profile:
     buoyancy: 2

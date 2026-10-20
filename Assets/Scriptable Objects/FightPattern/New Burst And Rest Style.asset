@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de3b653b0d3fb19429c623ab18004ada, type: 3}
+  m_Name: New Burst And Rest Style
+  m_EditorClassIdentifier: 
+  warningLead: 0.35
+  pullsPerBurst: 3
+  pullGap: 0.4
+  restSeconds: 2
+  impulse: 0.12
+  strengthBase: 0.6
