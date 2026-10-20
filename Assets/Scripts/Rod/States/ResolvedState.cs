@@ -1,17 +1,22 @@
 namespace Tidebook
 {
-    /// <summary>Short cooldown that removes the bobber, then returns to Aiming.</summary>
+    /// <summary>
+    /// The cast is over. Hides the bobber and publishes a CatchReport; listeners decide what that means
+    /// (pay the player, release or free the fish, show a message...). Then returns to Aiming.
+    /// </summary>
     public class ResolvedState : RodState
     {
         readonly IBobberView bobber;
+        readonly ICatchPublisher catches;
         readonly CatchResult result;
         float timer = 1.5f;
 
         public ResolvedState(RodSession session, StateMachine machine, IRodStateFactory states,
-                             IBobberView bobber, CatchResult result)
+                             IBobberView bobber, ICatchPublisher catches, CatchResult result)
             : base(session, machine, states)
         {
             this.bobber = bobber;
+            this.catches = catches;
             this.result = result;
         }
 
@@ -19,7 +24,7 @@ namespace Tidebook
         {
             session.Phase = RodPhase.Resolved;
             bobber.Hide();
-            if (result == CatchResult.Retrieved) session.Message = "Reeled in the line.";
+            catches.Publish(new CatchReport(result, session.Target, session.Bait, session.Water));
         }
 
         public override void Tick(float dt)

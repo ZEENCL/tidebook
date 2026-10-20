@@ -74,8 +74,13 @@ namespace Tidebook
 
         // ---- IFightTarget ----
         public float FightStrength { get { return Species.fightStrength; } }
-        public int Reward { get { return Species.currencyValue; } }
 
+        public IPullPattern CreatePullPattern()
+        {
+            return Species.CreatePullPattern();
+        }
+
+        // ---- IFishOutcome ----
         public void Escape()
         {
             if (brain != null) brain.Escape();
@@ -87,7 +92,7 @@ namespace Tidebook
             else Destroy(gameObject);
         }
 
-        // ---- IFishInfo ----
+        // ---- IFishInfo ---- (Species is the property declared at the top of the class)
         public string DisplayName { get { return Species != null ? Species.displayName : "-"; } }
         public string StateName { get { return brain != null ? brain.StateName : "-"; } }
         public float MatchRatio { get { return brain != null ? brain.MatchRatio : 0f; } }

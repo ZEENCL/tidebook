@@ -7,4 +7,7 @@ namespace Tidebook
     public enum RodPhase { Aiming, Charging, Settling, Waiting, BiteWindow, Reeling, Resolved }
 
     public enum CatchResult { Caught, Snapped, Escaped, Missed, Retrieved }
+
+    /// <summary>Moments the HUD, audio or rod animation may want to react to.</summary>
+    public enum RodCue { BiteStarted, PullWarning, Pulled }
 }

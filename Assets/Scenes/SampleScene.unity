@@ -219,6 +219,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4459864850019384750, guid: 6bacecc4f3df9584198879c73a6b6c36, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1274357296}
+    - targetCorrespondingSourceObject: {fileID: 4459864850019384750, guid: 6bacecc4f3df9584198879c73a6b6c36, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1274357302}
   m_SourcePrefab: {fileID: 100100000, guid: 6bacecc4f3df9584198879c73a6b6c36, type: 3}
 --- !u!1 &627589154
 GameObject:
@@ -357,6 +360,7 @@ GameObject:
   m_Component:
   - component: {fileID: 727977853}
   - component: {fileID: 727977852}
+  - component: {fileID: 727977854}
   m_Layer: 0
   m_Name: ZoneBay
   m_TagString: Untagged
@@ -376,9 +380,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 27c71a67eedf39845bbb7d7ba41ce9b2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  spotId: Bay
-  areaSize: {x: 40, y: 0, z: 40}
-  depth: 6
   species:
   - {fileID: 11400000, guid: 02b98d585dc59c942a9f2c6958b1c8b7, type: 2}
   - {fileID: 11400000, guid: 76f6518d65aeac94f8d1abee7b2844f5, type: 2}
@@ -403,6 +404,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &727977854
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 727977851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a57fc8b3e7cf83489b38669c0c85d3f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  spotId: Bay
+  areaSize: {x: 40, y: 0, z: 40}
+  depth: 6
 --- !u!1 &818627081
 GameObject:
   m_ObjectHideFlags: 0
@@ -672,25 +688,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   cam: {fileID: 173549126}
-  minCastRange: 4
-  maxCastRange: 25
-  chargeSeconds: 1.2
-  buoyancy: 2
-  shape: 0
-  colorPattern: 0
-  swim: 3
-  reelTensionRate: 0.7
-  relaxTensionRate: 0.6
-  progressRate: 0.18
-  slipRate: 0.12
-  BaitPosition: {x: 0, y: 0, z: 0}
-  Target: {fileID: 0}
-  Power: 0
-  Tension: 0
-  ReelProgress: 0
-  BandHalfWidth: 0
-  Currency: 0
-  Message: 
+  cast:
+    minRange: 4
+    maxRange: 25
+    chargeSeconds: 1.2
+  reel:
+    tensionRate: 0.7
+    relaxRate: 0.6
+    progressRate: 0.18
+    slipRate: 0.12
+--- !u!114 &1274357302
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1274357289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2cc374ece423e684d857b9778651dd0c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1408194899
 GameObject:
   m_ObjectHideFlags: 0

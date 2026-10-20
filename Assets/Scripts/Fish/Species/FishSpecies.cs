@@ -57,11 +57,21 @@ namespace Tidebook
         public float swimSpeed = 1.5f;
         [Range(0f, 1f)] public float fightStrength = 0.3f; // 0 = pushover, 1 = brutal
 
+        [Tooltip("Pull rhythm while this fish is hooked. Leave empty for the default (random bursts).")]
+        public FightStyle fightStyle;
+
         [Header("Optional visuals (prototype falls back to a capsule)")]
         public GameObject prefab;
 
         [Header("Bait preferences")]
         public PreferenceProfile profile = new PreferenceProfile();
+
+        /// <summary>Creates a fresh pull pattern for one fight (fight style asset + this species' strength).</summary>
+        public IPullPattern CreatePullPattern()
+        {
+            FightStyle style = fightStyle != null ? fightStyle : FightStyle.Default;
+            return style.Create(fightStrength);
+        }
 
         /// <summary>Can this species currently exist at this spot? (spot list + required time/weather)</summary>
         public bool CanExistIn(WaterContext ctx)

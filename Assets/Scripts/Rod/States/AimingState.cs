@@ -14,7 +14,6 @@ namespace Tidebook
         public override void Enter()
         {
             session.Phase = RodPhase.Aiming;
-            session.Power = 0f;
             if (string.IsNullOrEmpty(session.Message)) session.Message = "Hold LMB to charge a cast.";
         }
 

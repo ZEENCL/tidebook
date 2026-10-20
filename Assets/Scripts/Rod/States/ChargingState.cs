@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Tidebook
 {
-    /// <summary>Holding the button: power meter fills. Release to cast.</summary>
+    /// <summary>Holding the button: the power meter fills. Release to cast.</summary>
     public class ChargingState : RodState
     {
         readonly ICastInput input;
@@ -10,6 +10,8 @@ namespace Tidebook
         readonly ICastLandingResolver resolver;
         readonly IBaitProvider baits;
         readonly IBobberView bobber;
+
+        float power;   // 0..1, owned by this state and published as a meter
 
         public ChargingState(RodSession session, StateMachine machine, IRodStateFactory states,
                              ICastInput input, CastSettings cast, ICastLandingResolver resolver,
@@ -26,14 +28,16 @@ namespace Tidebook
         public override void Enter()
         {
             session.Phase = RodPhase.Charging;
-            session.Power = 0f;
             session.Target = null;
             session.Message = "Charging... release to cast (RMB cancels).";
+            power = 0f;
+            session.Meters.Set("Power", power);
         }
 
         public override void Tick(float dt)
         {
-            session.Power = Mathf.Clamp01(session.Power + dt / cast.chargeSeconds);
+            power = Mathf.Clamp01(power + dt / cast.chargeSeconds);
+            session.Meters.Set("Power", power);
 
             if (input.CancelPressed)
             {
@@ -46,7 +50,7 @@ namespace Tidebook
 
             Vector3 landing;
             IWaterZone zone;
-            if (resolver.TryResolve(session.Power, out landing, out zone))
+            if (resolver.TryResolve(power, out landing, out zone))
             {
                 session.BaitPosition = landing;
                 session.Water = zone.Context;
