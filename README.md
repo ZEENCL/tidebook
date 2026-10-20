@@ -4,7 +4,7 @@
 
 Explore a small open world, read the water, build the right bait, and catch every species to complete your Fish Index. No combat. No fail-state. Just you, a rod, and the tide.
 
-> Game Design Document: Activity 01 · EMC208 · Lee, Cian
+> Game Design Document · Lee, Cian Stephen
 > 📄 [Read the full GDD](https://docs.google.com/document/d/1C36t8hB0mL4xr-5BxLe6q6ilsJLNDil4LVuTaczvZzE/edit?usp=sharing)
 
 ---
