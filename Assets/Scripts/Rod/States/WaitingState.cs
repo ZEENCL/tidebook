@@ -29,6 +29,7 @@ namespace Tidebook
                 {
                     fish[i].Bit += OnFishBit;
                     noticed.Add(fish[i]);
+                    session.AddWatcher(fish[i].Cue);
                 }
             }
         }
