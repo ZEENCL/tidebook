@@ -29,6 +29,7 @@ namespace Tidebook
         {
             session.Phase = RodPhase.Charging;
             session.Target = null;
+            session.ClearWatchers();
             session.Message = "Charging... release to cast (RMB cancels).";
             power = 0f;
             session.Meters.Set("Power", power);
@@ -38,6 +39,7 @@ namespace Tidebook
         {
             power = Mathf.Clamp01(power + dt / cast.chargeSeconds);
             session.Meters.Set("Power", power);
+            session.SetPreview(resolver.Preview(power));
 
             if (input.CancelPressed)
             {
@@ -56,11 +58,13 @@ namespace Tidebook
                 session.Water = zone.Context;
                 session.Bait = baits.BuildBait();
                 bobber.Show(landing);
+                session.RaiseCue(RodCue.CastLaunched);
                 machine.ChangeState(states.Settling());
             }
             else
             {
                 session.Message = "That cast didn't land in any fishing zone.";
+                session.RaiseCue(RodCue.CastRejected);
                 machine.ChangeState(states.Aiming());
             }
         }

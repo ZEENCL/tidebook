@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace Tidebook
 {
-    public class Fish : MonoBehaviour, IBaitReactive, IHookableFish
+    public class Fish : MonoBehaviour, IBaitReactive, IHookableFish, IFishCue
     {
         /// <summary>All currently active (spawned, not pooled) fish.</summary>
         public static readonly List<Fish> Active = new List<Fish>();
@@ -62,6 +62,28 @@ namespace Tidebook
         public void LoseInterest()
         {
             if (brain != null) brain.LoseInterest();
+        }
+
+        public IFishCue Cue { get { return this; } }
+
+        // ---- IFishCue (what the player can see / hear of this fish) ----
+        public Vector3 Position { get { return transform.position; } }
+        public Vector3 Forward { get { return transform.forward; } }
+        public FishCueState CueState { get { return brain != null ? brain.CueState : FishCueState.None; } }
+
+        public float SizeHint
+        {
+            get
+            {
+                if (Species == null) return 1f;
+                switch (Species.rarity)
+                {
+                    case Rarity.Uncommon: return 1.0f;
+                    case Rarity.Rare: return 1.3f;
+                    case Rarity.Legendary: return 1.7f;
+                    default: return 0.8f;
+                }
+            }
         }
 
         // ---- IBiteTarget ----

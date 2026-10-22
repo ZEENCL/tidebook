@@ -34,6 +34,19 @@ namespace Tidebook
 
         public string StateName { get { return Machine.CurrentName; } }
         public bool IsBiting { get { return Machine.Current is BitingState; } }
+
+        public FishCueState CueState
+        {
+            get
+            {
+                IState s = Machine.Current;
+                if (s is CuriousState) return FishCueState.Curious;
+                if (s is InterestedState) return FishCueState.Interested;
+                if (s is BitingState) return FishCueState.Biting;
+                if (s is HookedState) return FishCueState.Hooked;
+                return FishCueState.None;
+            }
+        }
         public bool IsBusy { get { return Machine.Current is BitingState || Machine.Current is HookedState; } }
 
         /// <summary>Bait landed at 'position'. Returns true if this fish noticed it and reacts.</summary>

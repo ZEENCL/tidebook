@@ -36,6 +36,17 @@ namespace Tidebook.Ui
         [Tooltip("Optional: use your own font for all UI text.")]
         public Font customFont;
 
+        [Header("Fishing HUD (gameplay feedback)")]
+        [Tooltip("Crosshair, cast trajectory, bite alerts, fight bar, catch banner, time / weather and coins.")]
+        public bool showFishingHud = true;
+        [Tooltip("Switch off the old debug text HUD (RodHud) while the fishing HUD is on.")]
+        public bool replaceDebugHud = true;
+        public bool showCastTrajectory = true;
+        [Tooltip("Ripples on the water, approaching fish shadows and nibble rings.")]
+        public bool showWorldFeedback = true;
+        [Tooltip("Optional: where the trajectory line starts (e.g. a rod tip). Empty = just in front of the camera.")]
+        public Transform castOrigin;
+
         [Header("Preview / demo")]
         [Tooltip("When nothing else provides fish, fill the Tidebook with 12 sample species.")]
         public bool useDemoFishIfNoSpecies = true;
@@ -52,6 +63,8 @@ namespace Tidebook.Ui
         UiToast toast;
         EquippedBait equipped;
         FishIndexLog log;
+        FishingHud fishingHud;
+        WorldFeedback worldFeedback;
 
         bool menuWasOpen;
         CursorLockMode previousLock;
@@ -95,6 +108,16 @@ namespace Tidebook.Ui
                 rod.BaitProvider = equipped;                                   // the rod now casts what the builder equips
                 rod.InputSource = new UiGatedRodInput(new LegacyRodInput());   // menus never trigger casts
                 rod.CatchEvents.Subscribe(log);                                // catches are logged in the Tidebook
+
+                // Gameplay feedback. Created after the log subscribed, so the catch banner sees updated progress.
+                if (showFishingHud)
+                {
+                    RodHud debugHud = rod.GetComponent<RodHud>();
+                    if (replaceDebugHud && debugHud != null) debugHud.enabled = false;
+                    fishingHud = FishingHud.Create(root.HudLayer, rod, log, castOrigin, showCastTrajectory);
+                }
+
+                if (showWorldFeedback) worldFeedback = WorldFeedback.Create(rod, new StaticFishLocator());
             }
         }
 
@@ -103,6 +126,7 @@ namespace Tidebook.Ui
             UiFocus.Changed -= OnFocusChanged;
             if (log != null) log.Discovered -= OnDiscovered;
             if (rod != null && log != null) rod.CatchEvents.Unsubscribe(log);
+            if (worldFeedback != null) Destroy(worldFeedback.gameObject);
 
             if (menuWasOpen)
             {
