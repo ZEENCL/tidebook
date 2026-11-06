@@ -30,6 +30,7 @@ namespace Tidebook
             pull.Begin();
             reel.Begin(fight.FightStrength);
             PublishMeters();
+            session.RaiseCue(RodCue.HookSet);
         }
 
         public override void Tick(float dt)

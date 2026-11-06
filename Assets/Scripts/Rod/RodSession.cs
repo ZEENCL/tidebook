@@ -11,6 +11,7 @@ namespace Tidebook
     {
         RodPhase phase;
         readonly RodMeters meters = new RodMeters();
+        readonly List<IFishCue> watchers = new List<IFishCue>();
 
         // ---- exposed to observers (IRodStatus) ----
 
@@ -22,10 +23,15 @@ namespace Tidebook
             {
                 phase = value;
                 meters.Clear();
+                Preview = new CastPreview();
             }
         }
 
         public string Message { get; set; }
+
+        public CastPreview Preview { get; private set; }
+
+        IReadOnlyList<IFishCue> IRodStatus.Watchers { get { return watchers; } }
 
         public event System.Action<RodCue> Cue;
 
@@ -36,6 +42,10 @@ namespace Tidebook
 
         // ---- used by the states ----
         public RodMeters Meters { get { return meters; } }
+
+        public void SetPreview(CastPreview preview) { Preview = preview; }
+        public void AddWatcher(IFishCue cue) { if (cue != null && !watchers.Contains(cue)) watchers.Add(cue); }
+        public void ClearWatchers() { watchers.Clear(); }
         public Bait Bait { get; set; }
         public Vector3 BaitPosition { get; set; }
         public WaterContext Water { get; set; }

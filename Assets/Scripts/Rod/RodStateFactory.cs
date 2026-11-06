@@ -34,7 +34,7 @@ namespace Tidebook
             this.catches = catches;
         }
 
-        public IState Aiming() { return new AimingState(session, machine, this, input); }
+        public IState Aiming() { return new AimingState(session, machine, this, input, resolver); }
 
         public IState Charging() { return new ChargingState(session, machine, this, input, cast, resolver, baits, bobber); }
 

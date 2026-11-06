@@ -39,5 +39,28 @@ namespace Tidebook
             point = new Vector3(flat.x, zone.SurfaceY, flat.z);
             return true;
         }
+
+        public CastPreview Preview(float power)
+        {
+            CastPreview preview = new CastPreview();
+
+            Vector3 dir = aim.forward;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f) return preview;   // looking straight up/down: nothing to show
+            dir.Normalize();
+
+            float distance = Mathf.Lerp(cast.minRange, cast.maxRange, power);
+            Vector3 flat = aim.position + dir * distance;
+            IWaterZone zone = zones.FindAt(flat);
+
+            preview.Visible = true;
+            preview.Power = power;
+            preview.Distance = distance;
+            preview.InWater = zone != null;
+            preview.Point = zone != null
+                ? new Vector3(flat.x, zone.SurfaceY, flat.z)
+                : new Vector3(flat.x, aim.position.y - 1.7f, flat.z);   // over land: roughly ground level
+            return preview;
+        }
     }
 }

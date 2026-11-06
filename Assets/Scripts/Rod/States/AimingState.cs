@@ -4,11 +4,14 @@ namespace Tidebook
     public class AimingState : RodState
     {
         readonly ICastInput input;
+        readonly ICastLandingResolver resolver;
 
-        public AimingState(RodSession session, StateMachine machine, IRodStateFactory states, ICastInput input)
+        public AimingState(RodSession session, StateMachine machine, IRodStateFactory states,
+                           ICastInput input, ICastLandingResolver resolver)
             : base(session, machine, states)
         {
             this.input = input;
+            this.resolver = resolver;
         }
 
         public override void Enter()
@@ -19,6 +22,8 @@ namespace Tidebook
 
         public override void Tick(float dt)
         {
+            session.SetPreview(resolver.Preview(1f));   // a full-power cast shows how far the rod can reach
+
             if (input.ChargePressed) machine.ChangeState(states.Charging());
         }
     }
