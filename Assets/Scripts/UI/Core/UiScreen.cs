@@ -18,6 +18,9 @@ namespace Tidebook.Ui
 
         public bool IsOpen { get { return open; } }
 
+        /// <summary>True for screens that read typed characters (a text console), so single-key hotkeys stay quiet while it is open.</summary>
+        public virtual bool CapturesTyping { get { return false; } }
+
         protected abstract Vector2 WindowSize { get; }
         protected abstract void BuildWindow(RectTransform window);
 

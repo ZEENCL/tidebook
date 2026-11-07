@@ -5,6 +5,11 @@
 //           and Equip / Revert buttons.
 // The player edits a DRAFT; "Equip Bait" copies it to the EquippedBait the rod casts with.
 //
+// Every edit is a Command (see Commands/BaitCommands.cs). This screen is the CLIENT: it creates a command per
+// click and hands it to a CommandHistory (the INVOKER), which keeps the undo / redo stacks. BaitSelection
+// (the draft) is the RECEIVER. Undo / Redo buttons, Ctrl+Z, Ctrl+Y (Cmd on Mac) and Ctrl+Shift+Z all use it,
+// and Randomize / Revert are macro commands, so each one undoes in a single step.
+//
 // The notes only show what the player has already discovered about a fish (see FishIndexLog),
 // so the game keeps its "figure out what they like" loop instead of exposing the hidden numbers.
 
@@ -26,6 +31,7 @@ namespace Tidebook.Ui
         EquippedBait equipped;
         IFishIndexView index;
         readonly BaitSelection draft = new BaitSelection();
+        readonly CommandHistory history = new CommandHistory();
 
         Buoyancy[] buoyancyValues;
         BodyShape[] shapeValues;
@@ -43,6 +49,9 @@ namespace Tidebook.Ui
         readonly Text[] tagTexts = new Text[4];
         UiButton equipButton;
         Text equipLabel;
+        UiButton undoButton;
+        UiButton redoButton;
+        Text historyHint;
 
         readonly UiButton[] targetButtons = new UiButton[MaxTargets];
         readonly Image[] targetIcons = new Image[MaxTargets];
@@ -65,6 +74,7 @@ namespace Tidebook.Ui
             if (index != null) index.Changed += OnIndexChanged;
 
             draft.CopyFrom(equipped.Selection);
+            history.Clear();
             RefreshTargets();
             Refresh();
         }
@@ -99,10 +109,42 @@ namespace Tidebook.Ui
                                              TextAnchor.MiddleCenter, FontStyle.Bold);
             UiBuilder.Stretch(closeText.rectTransform);
 
+            BuildHistoryButtons(w);
             BuildLeftColumn(w);
             BuildRightColumn(w);
 
             draft.Changed += Refresh;
+            history.Changed += RefreshHistory;
+            RefreshHistory();
+        }
+
+        void BuildHistoryButtons(RectTransform w)
+        {
+            // Sits in the title bar, to the left of the "Esc Close" hint.
+            redoButton = MakeBarButton(w, "Redo", 238f, 120f, UiPalette.PaperShade, UiPalette.Hex("#F8EFD9"), Redo);
+            undoButton = MakeBarButton(w, "Undo", 372f, 120f, UiPalette.PaperShade, UiPalette.Hex("#F8EFD9"), Undo);
+            MakeBarButton(w, "Randomize", 506f, 170f, UiPalette.WithAlpha(UiPalette.Lavender, 0.55f),
+                          UiPalette.Lavender, Randomize);
+
+            historyHint = UiBuilder.Label(w, "HistoryHint", "", 20, UiPalette.InkSoft, TextAnchor.UpperRight);
+            UiBuilder.TopRight(historyHint.rectTransform, 44f, 88f, 640f, 30f);
+        }
+
+        UiButton MakeBarButton(RectTransform w, string text, float right, float width, Color normal, Color hover,
+                               System.Action onClick)
+        {
+            Image bg = UiBuilder.Box(w, text, normal, 16, true);
+            UiButton button = UiBuilder.Button(bg, normal, hover, UiPalette.PaperEdge, UiPalette.PaperEdge);
+            button.disabledColor = UiPalette.PaperShade;
+            UiBuilder.TopRight(bg.rectTransform, right, 34f, width, 46f);
+
+            Text label = UiBuilder.Label(bg.transform, "Text", text, 22, UiPalette.Ink, TextAnchor.MiddleCenter, FontStyle.Bold);
+            UiBuilder.Stretch(label.rectTransform);
+            button.label = label;
+            button.labelNormal = UiPalette.Ink;
+            button.labelSelected = UiPalette.Ink;
+            button.Clicked = onClick;
+            return button;
         }
 
         void BuildLeftColumn(RectTransform w)
@@ -121,7 +163,7 @@ namespace Tidebook.Ui
                 Buoyancy value = buoyancyValues[i];
                 Image icon;
                 buoyancyButtons[i] = MakeChip(row, BaitText.Name(value), BaitArt.BuoyancyIcon(value), out icon);
-                buoyancyButtons[i].Clicked = delegate { draft.SetBuoyancy(value); };
+                buoyancyButtons[i].Clicked = delegate { if (draft.Buoyancy != value) Run(new SetBuoyancyCommand(draft, value)); };
             }
 
             // ---- body shape ----
@@ -136,7 +178,7 @@ namespace Tidebook.Ui
                 Image icon;
                 shapeButtons[i] = MakeChip(row, BaitText.Name(value), BaitArt.Lure(value, ColorPattern.RedWhite), out icon);
                 shapeIcons[i] = icon;
-                shapeButtons[i].Clicked = delegate { draft.SetShape(value); };
+                shapeButtons[i].Clicked = delegate { if (draft.Shape != value) Run(new SetShapeCommand(draft, value)); };
             }
 
             // ---- color / pattern ----
@@ -149,7 +191,7 @@ namespace Tidebook.Ui
                 ColorPattern value = patternValues[i];
                 Image icon;
                 patternButtons[i] = MakeChip(row, BaitText.Name(value), BaitArt.Swatch(value), out icon);
-                patternButtons[i].Clicked = delegate { draft.SetPattern(value); };
+                patternButtons[i].Clicked = delegate { if (draft.Pattern != value) Run(new SetPatternCommand(draft, value)); };
             }
 
             // ---- swim pattern ----
@@ -162,7 +204,7 @@ namespace Tidebook.Ui
                 SwimPattern value = swimValues[i];
                 Image icon;
                 swimButtons[i] = MakeChip(row, BaitText.Name(value), BaitArt.SwimIcon(value), out icon);
-                swimButtons[i].Clicked = delegate { draft.SetSwim(value); };
+                swimButtons[i].Clicked = delegate { if (draft.Swim != value) Run(new SetSwimCommand(draft, value)); };
             }
         }
 
@@ -292,7 +334,7 @@ namespace Tidebook.Ui
             revert.label = revertText;
             revert.labelNormal = UiPalette.InkSoft;
             revert.labelSelected = UiPalette.InkSoft;
-            revert.Clicked = delegate { if (equipped != null) draft.CopyFrom(equipped.Selection); };
+            revert.Clicked = Revert;
 
             Image equipBg = UiBuilder.Box(w, "Equip", UiPalette.Coral, 22, true);
             equipButton = UiBuilder.Button(equipBg, UiPalette.Coral, UiPalette.Hex("#FF9C80"),
@@ -317,6 +359,7 @@ namespace Tidebook.Ui
         protected override void OnOpen()
         {
             if (equipped != null) draft.CopyFrom(equipped.Selection);
+            history.Clear();   // the draft was just reset, so old steps no longer apply
             RefreshTargets();
             Refresh();
         }
@@ -325,6 +368,62 @@ namespace Tidebook.Ui
         {
             bool enter = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
             if (enter && equipButton.interactable) Equip();
+
+            // Ctrl+Z undo, Ctrl+Y or Ctrl+Shift+Z redo (Cmd instead of Ctrl on Mac).
+            bool mod = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)
+                       || Input.GetKey(KeyCode.LeftCommand) || Input.GetKey(KeyCode.RightCommand);
+            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            if (mod && Input.GetKeyDown(KeyCode.Z))
+            {
+                if (shift) Redo(); else Undo();
+            }
+            else if (mod && Input.GetKeyDown(KeyCode.Y))
+            {
+                Redo();
+            }
+        }
+
+        // ---------------------------------------------------------------- commands
+
+        /// <summary>Every edit goes through here so it can be undone.</summary>
+        void Run(ICommand command)
+        {
+            history.Execute(command);
+        }
+
+        void Run(CompositeCommand macro)
+        {
+            if (!macro.IsEmpty) history.Execute(macro);   // nothing would change -> nothing to undo
+        }
+
+        void Undo() { history.Undo(); }
+        void Redo() { history.Redo(); }
+        void Randomize() { Run(new RandomizeBaitCommand(draft)); }
+
+        void Revert()
+        {
+            if (equipped != null) Run(new ResetBaitCommand(draft, equipped.Selection));
+        }
+
+        void RefreshHistory()
+        {
+            if (undoButton == null) return;
+
+            SetEnabled(undoButton, history.CanUndo);
+            SetEnabled(redoButton, history.CanRedo);
+
+            if (!history.CanUndo && !history.CanRedo)
+                historyHint.text = "Ctrl+Z undo   Ctrl+Y redo";
+            else if (history.CanRedo)
+                historyHint.text = (history.CanUndo ? "Undo: " + history.UndoLabel + "     " : "") + "Redo: " + history.RedoLabel;
+            else
+                historyHint.text = "Undo: " + history.UndoLabel;
+        }
+
+        static void SetEnabled(UiButton button, bool enabled)
+        {
+            button.interactable = enabled;
+            button.labelNormal = enabled ? UiPalette.Ink : UiPalette.InkFaint;
         }
 
         void Equip()
