@@ -5,13 +5,16 @@
 //   Escaped       : "Slipped off" with a tip
 //   Missed        : "Too slow" with a tip
 // Reeling in an empty line shows nothing. The tips teach the mechanic without scolding (low-pressure tone).
+//
+// MVVM: this is the View of CatchResultViewModel. The wording, the coins and the "new entry" check are
+// worked out there; this class only picks colours and the icon, plays the sound and animates the card.
 
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace Tidebook.Ui
 {
-    public class CatchBannerView : HudView, ICatchListener
+    public class CatchBannerView : HudView
     {
         const float Duration = 3.6f;
 
@@ -25,6 +28,7 @@ namespace Tidebook.Ui
         GameObject newBadge;
 
         float shownAt = -100f;
+        CatchResultViewModel viewModel;
 
         protected override void Build(RectTransform layer)
         {
@@ -64,51 +68,43 @@ namespace Tidebook.Ui
             newBadge = badge.gameObject;
         }
 
-        public void OnCatchResolved(CatchReport report)
+        // ---- MVVM binding ----
+
+        /// <summary>Connects the card to its ViewModel. It shows a card each time the ViewModel produces one.</summary>
+        public void Bind(CatchResultViewModel vm)
         {
-            if (card == null || report.Result == CatchResult.Retrieved) return;
+            Unbind();
+            viewModel = vm;
+            viewModel.Card.Bind(Show);   // nothing is shown until the first catch (the card starts out null)
+        }
 
-            FishSpecies species = report.Info != null ? report.Info.Species : null;
-            FishIndexEntry entry = ctx != null ? ctx.EntryFor(species) : null;
+        public void Unbind()
+        {
+            if (viewModel == null) return;
+            viewModel.Card.Unbind(Show);
+            viewModel = null;
+        }
 
-            bool isNew = false;
-            switch (report.Result)
+        void Show(CatchCard data)
+        {
+            if (card == null || data == null) return;
+
+            switch (data.Tone)
             {
-                case CatchResult.Caught:
-                {
-                    accent.color = species != null ? UiPalette.ForRarity(species.rarity) : UiPalette.Mint;
-                    title.text = "CAUGHT!";
-                    title.color = accent.color;
-                    nameText.text = species != null ? species.displayName : "A fish";
-                    detail.text = species != null
-                        ? species.rarity + "     +" + species.currencyValue + " coins"
-                        : "";
-                    isNew = entry != null && entry.TimesCaught == 1;
+                case CardTone.Caught:
+                    accent.color = data.Species != null ? UiPalette.ForRarity(data.Species.rarity) : UiPalette.Mint;
                     break;
-                }
-                case CatchResult.Snapped:
-                    accent.color = UiPalette.Coral;
-                    title.text = "LINE SNAPPED";
-                    title.color = UiPalette.Coral;
-                    nameText.text = "It got away!";
-                    detail.text = "Tip: let go of the reel before the bar reaches SNAP.";
-                    break;
-                case CatchResult.Escaped:
-                    accent.color = UiPalette.Sky;
-                    title.text = "SLIPPED OFF";
-                    title.color = UiPalette.Sky;
-                    nameText.text = "It got away!";
-                    detail.text = "Tip: keep the needle inside the green band to make progress.";
-                    break;
-                default:   // Missed
-                    accent.color = UiPalette.Sun;
-                    title.text = "TOO SLOW";
-                    title.color = UiPalette.Sun;
-                    nameText.text = "It spat the bait out.";
-                    detail.text = "Tip: click as soon as you see the ! above your bobber.";
-                    break;
+                case CardTone.Snapped: accent.color = UiPalette.Coral; break;
+                case CardTone.Escaped: accent.color = UiPalette.Sky; break;
+                default: accent.color = UiPalette.Sun; break;   // Missed
             }
 
+            title.text = data.Title;
+            title.color = accent.color;
+            nameText.text = data.FishName;
+            detail.text = data.Detail;
+
+            FishIndexEntry entry = ctx != null ? ctx.EntryFor(data.Species) : null;
             if (entry != null)
             {
                 bool known = entry.Discovered;
@@ -119,10 +115,10 @@ namespace Tidebook.Ui
                 icon.sprite = FishArt.Icon(UiPalette.Coral, 1);
             }
 
-            newBadge.SetActive(isNew);
+            newBadge.SetActive(data.IsNewEntry);
             shownAt = Time.unscaledTime;
-            UiSounds.Play(report.Result == CatchResult.Caught ? UiSound.Catch
-                          : report.Result == CatchResult.Snapped ? UiSound.Snap : UiSound.Escape);
+            UiSounds.Play(data.Tone == CardTone.Caught ? UiSound.Catch
+                          : data.Tone == CardTone.Snapped ? UiSound.Snap : UiSound.Escape);
         }
 
         public override void Tick()

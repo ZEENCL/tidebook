@@ -10,7 +10,6 @@ namespace Tidebook.Ui
     {
         public IRodStatus Status;
         public IFishIndexView Index;
-        public IWalletView Wallet;
         public RectTransform Layer;
         public Camera Cam;
         public Transform CastOrigin;

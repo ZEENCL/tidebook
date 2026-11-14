@@ -1,6 +1,9 @@
 // StatusView.cs
 // Top-right info card (GDD 5.1): time of day and weather, plus the player's currency.
 // A "+12" pops up next to the coin counter whenever money is earned.
+//
+// MVVM: the coin counter is a View of WalletViewModel. It is told when the balance changes (Coins) and when
+// coins are earned (CoinsEarned); it never reads the wallet itself.
 
 using UnityEngine;
 using UnityEngine.UI;
@@ -21,8 +24,8 @@ namespace Tidebook.Ui
         TimeOfDay lastTime = TimeOfDay.Day;
         Weather lastWeather = Weather.Clear;
         bool weatherInit;
-        int lastBalance = -1;
         float popAt = -100f;
+        WalletViewModel wallet;
 
         protected override void Build(RectTransform layer)
         {
@@ -49,6 +52,36 @@ namespace Tidebook.Ui
             UiBuilder.TopLeft(coinText.rectTransform, 70f, 66f, 160f, 40f);
             popText = UiBuilder.Label(bg.transform, "Pop", "", 28, UiPalette.Mint, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiBuilder.TopLeft(popText.rectTransform, 220f, 66f, 110f, 40f);
+        }
+
+        // ---- MVVM binding ----
+
+        /// <summary>Connects the counter to its ViewModel. It shows the current coins immediately.</summary>
+        public void Bind(WalletViewModel viewModel)
+        {
+            Unbind();
+            wallet = viewModel;
+            wallet.Coins.Bind(OnCoinsChanged);
+            wallet.CoinsEarned += OnCoinsEarned;
+        }
+
+        public void Unbind()
+        {
+            if (wallet == null) return;
+            wallet.Coins.Unbind(OnCoinsChanged);
+            wallet.CoinsEarned -= OnCoinsEarned;
+            wallet = null;
+        }
+
+        void OnCoinsChanged(int coins)
+        {
+            coinText.text = coins.ToString();
+        }
+
+        void OnCoinsEarned(int amount)
+        {
+            popText.text = "+" + amount;
+            popAt = Time.unscaledTime;
         }
 
         public override void Tick()
@@ -82,23 +115,8 @@ namespace Tidebook.Ui
                 weatherInit = true;
             }
 
-            // ---- currency ----
-            if (ctx.Wallet != null)
-            {
-                int balance = ctx.Wallet.Balance;
-                if (balance != lastBalance)
-                {
-                    if (lastBalance >= 0 && balance > lastBalance)
-                    {
-                        popText.text = "+" + (balance - lastBalance);
-                        popAt = ctx.Now;
-                    }
-                    lastBalance = balance;
-                    coinText.text = balance.ToString();
-                }
-            }
-
-            float age = ctx.Now - popAt;
+            // ---- "+N" pop animation (the numbers come from the ViewModel) ----
+            float age = Time.unscaledTime - popAt;
             if (age >= 0f && age < 1.6f)
             {
                 float k = age / 1.6f;

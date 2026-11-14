@@ -8,6 +8,10 @@
 //   StatusView      time of day, weather, coins
 //   CatchBannerView result card after each cast
 // Plays UiSounds for the key moments so you can plug audio in later (IUiSound).
+//
+// MVVM wiring for catch rewards lives here (this class is where Model, ViewModel and View are connected):
+//   PlayerWallet  -> WalletViewModel      -> StatusView       coin counter and the "+N" pop
+//   CatchReport   -> CatchResultViewModel -> CatchBannerView  the result card
 
 using System.Collections.Generic;
 using UnityEngine;
@@ -18,7 +22,10 @@ namespace Tidebook.Ui
     {
         RodController rod;
         HudContext ctx;
+        StatusView status;
         CatchBannerView banner;
+        WalletViewModel walletViewModel;
+        CatchResultViewModel catchViewModel;
         readonly List<HudView> views = new List<HudView>();
 
         RodPhase lastPhase;
@@ -53,11 +60,16 @@ namespace Tidebook.Ui
             Add(root, new CrosshairView());
             Add(root, new FightView());
             Add(root, new HintView());
-            Add(root, new StatusView());
+            status = new StatusView();
+            Add(root, status);
 
+            // Catch card: the ViewModel listens to the rod's catch events, the View shows what it produces.
+            // (Subscribed after the Tidebook log, so "new entry" is already up to date when the card is built.)
+            catchViewModel = new CatchResultViewModel(ctx.EntryFor);
             banner = new CatchBannerView();
             Add(root, banner);
-            rod.CatchEvents.Subscribe(banner);
+            banner.Bind(catchViewModel);
+            rod.CatchEvents.Subscribe(catchViewModel);
 
             ctx.Status.Cue += OnCue;
             lastPhase = ctx.Status.Phase;
@@ -73,7 +85,11 @@ namespace Tidebook.Ui
         {
             // these are created by the rod in its Start(), so pick them up lazily
             if (ctx.Cam == null) ctx.Cam = rod.cam != null ? rod.cam : Camera.main;
-            if (ctx.Wallet == null) ctx.Wallet = rod.Wallet;
+            if (walletViewModel == null && rod.Wallet != null)
+            {
+                walletViewModel = new WalletViewModel(rod.Wallet);
+                status.Bind(walletViewModel);
+            }
 
             ctx.Now = Time.unscaledTime;
             ctx.Dt = Time.unscaledDeltaTime;
@@ -109,7 +125,10 @@ namespace Tidebook.Ui
         void OnDestroy()
         {
             if (ctx != null && ctx.Status != null) ctx.Status.Cue -= OnCue;
-            if (rod != null && banner != null) rod.CatchEvents.Unsubscribe(banner);
+            if (rod != null && catchViewModel != null) rod.CatchEvents.Unsubscribe(catchViewModel);
+            if (banner != null) banner.Unbind();
+            if (status != null) status.Unbind();
+            if (walletViewModel != null) walletViewModel.Dispose();
         }
     }
 }
