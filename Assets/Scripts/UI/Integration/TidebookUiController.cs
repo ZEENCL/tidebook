@@ -74,6 +74,11 @@ namespace Tidebook.Ui
         public EquippedBait Equipped { get { return equipped; } }
         public IFishIndexView Index { get { return log; } }
 
+        // Exposed so optional add-ons (such as DevToolsController) can plug into the same canvas and progress log.
+        public UiRoot Root { get { return root; } }
+        public FishIndexLog Log { get { return log; } }
+        public UiToast Toast { get { return toast; } }
+
         // =====================================================================
         // Setup
         // =====================================================================
@@ -174,6 +179,9 @@ namespace Tidebook.Ui
                 UiFocus.Top.Close();
                 return;
             }
+
+            // A text console is open: letters typed into it must not trigger the menu hotkeys.
+            if (UiFocus.Top != null && UiFocus.Top.CapturesTyping) return;
 
             if (Input.GetKeyDown(baitKey)) Toggle(baitScreen, indexScreen);
             else if (Input.GetKeyDown(indexKey)) Toggle(indexScreen, baitScreen);

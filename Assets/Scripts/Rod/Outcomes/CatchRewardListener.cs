@@ -1,4 +1,5 @@
 // CatchRewardListener.cs - pays the player when a fish is landed. Knows about the wallet; the rod does not.
+// How much a catch pays is decided by CatchRewards; this class only applies it to the wallet (the Model).
 namespace Tidebook
 {
     public class CatchRewardListener : ICatchListener
@@ -12,8 +13,8 @@ namespace Tidebook
 
         public void OnCatchResolved(CatchReport report)
         {
-            if (report.Result != CatchResult.Caught || report.Info == null) return;
-            wallet.Add(report.Info.Species.currencyValue);
+            int coins = CatchRewards.CoinsFor(report);
+            if (coins > 0) wallet.Add(coins);
         }
     }
 }

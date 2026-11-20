@@ -1,5 +1,7 @@
 // Bait.cs
 // Bait (immutable product) + BaitBuilder (Builder pattern).
+// BaitBuilder.Build() returns the shared instance from BaitFlyweights (Flyweight pattern), so two baits with the
+// same four choices are the same object. That is safe because a Bait never changes after it is made.
 
 namespace Tidebook
 {
@@ -38,7 +40,7 @@ namespace Tidebook
 
         public Bait Build()
         {
-            return new Bait(buoyancy, shape, color, swim);
+            return BaitFlyweights.Get(buoyancy, shape, color, swim);
         }
     }
 }

@@ -16,7 +16,7 @@ namespace Tidebook
             {
                 case CatchResult.Caught:
                     string name = report.Info != null ? report.Info.DisplayName : "fish";
-                    int reward = report.Info != null ? report.Info.Species.currencyValue : 0;
+                    int reward = CatchRewards.CoinsFor(report);
                     session.Message = "Caught a " + name + "! +" + reward;
                     break;
                 case CatchResult.Snapped:

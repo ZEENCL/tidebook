@@ -1,6 +1,7 @@
 // BiteStrategyRegistry.cs
 // Maps a species' BiteStrategyType to a strategy instance. Register() lets you plug in
 // a new or replacement strategy without touching FishFactory.
+// This is also a flyweight: the strategies hold no per-fish data, so every fish of a type shares one instance.
 
 using System.Collections.Generic;
 

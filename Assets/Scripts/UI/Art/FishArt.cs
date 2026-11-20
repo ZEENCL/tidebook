@@ -41,7 +41,8 @@ namespace Tidebook.Ui
         // bounding box of each triangle (minX, maxX, minY, maxY) for quick rejection while painting
         static readonly float[][] TriBounds = new float[Triangles.Length][];
 
-        static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
+        // Flyweight: one shared sprite per (tint, variant, silhouette); every Image that shows it uses the same one.
+        static readonly SpriteCache<string> cache = new SpriteCache<string>("Fish sprites");
 
         static FishArt()
         {
@@ -118,7 +119,7 @@ namespace Tidebook.Ui
             string key = ColorUtility.ToHtmlStringRGB(tint) + "|" + variant + "|" + (silhouette ? "s" : "c");
 
             Sprite sprite;
-            if (cache.TryGetValue(key, out sprite) && sprite != null) return sprite;
+            if (cache.TryGet(key, out sprite)) return sprite;
 
             const int width = 160;
             const int height = 100;
@@ -156,7 +157,7 @@ namespace Tidebook.Ui
             });
 
             sprite = PixelPainter.ToSprite(tex, 100f);
-            cache[key] = sprite;
+            cache.Add(key, sprite);
             return sprite;
         }
     }

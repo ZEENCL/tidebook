@@ -95,14 +95,45 @@ namespace Tidebook
             FishSpecies pick = Selector.Pick(candidates, ctx);
             if (pick == null) return false;
 
+            spawned.Add(Place(pick));
+            return true;
+        }
+
+        /// <summary>Creates one fish of this species at a random spot in the zone (at the species' depth layer).</summary>
+        Fish Place(FishSpecies species)
+        {
             Bounds area = zone.Area;
-            float y = zone.LayerY(pick.layer);
+            float y = zone.LayerY(species.layer);
             Vector3 pos = new Vector3(
                 Random.Range(area.min.x, area.max.x),
                 y,
                 Random.Range(area.min.z, area.max.z));
 
-            spawned.Add(Factory.Create(pick, pos, area, y));
+            return Factory.Create(species, pos, area, y);
+        }
+
+        // ---- hooks for tools (the dev console's SpawnFish command uses these) ----
+
+        /// <summary>Could this species live in this zone right now? (spot list + required time / weather)</summary>
+        public bool CanSpawn(FishSpecies species)
+        {
+            return zone != null && Factory != null && species != null && species.CanExistIn(zone.Context);
+        }
+
+        /// <summary>Spawns one fish of any species this zone allows right now, on top of the normal population. Null if not allowed.</summary>
+        public Fish SpawnSpecies(FishSpecies species)
+        {
+            if (!CanSpawn(species)) return null;
+            Fish fish = Place(species);
+            spawned.Add(fish);
+            return fish;
+        }
+
+        /// <summary>Removes a fish this spawner made. Leaves it alone (false) if it is already gone or is mid-bite / mid-fight.</summary>
+        public bool Despawn(Fish fish)
+        {
+            if (fish == null || fish.IsBusy || !spawned.Remove(fish)) return false;
+            if (fish.gameObject.activeSelf) Factory.Release(fish);
             return true;
         }
 

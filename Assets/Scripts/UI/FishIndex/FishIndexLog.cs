@@ -146,6 +146,77 @@ namespace Tidebook.Ui
             Raise();
         }
 
+        // ---------------------------------------------------------------- debug unlock (undoable)
+
+        /// <summary>One entry's progress, copied out so it can be put back later (used by the dev console's undo).</summary>
+        public struct EntryProgress
+        {
+            public bool Discovered;
+            public int TimesCaught;
+            public KnownFactors Known;
+            public string FirstSpot;
+            public TimeOfDay FirstTime;
+            public Weather FirstWeather;
+        }
+
+        /// <summary>Copies the progress of every entry.</summary>
+        public EntryProgress[] CaptureProgress()
+        {
+            EntryProgress[] copy = new EntryProgress[entries.Count];
+            for (int i = 0; i < entries.Count; i++)
+            {
+                FishIndexEntry e = entries[i];
+                copy[i].Discovered = e.Discovered;
+                copy[i].TimesCaught = e.TimesCaught;
+                copy[i].Known = e.Known;
+                copy[i].FirstSpot = e.FirstSpot;
+                copy[i].FirstTime = e.FirstTime;
+                copy[i].FirstWeather = e.FirstWeather;
+            }
+            return copy;
+        }
+
+        /// <summary>Puts back progress taken with CaptureProgress(). Not saved; the next real catch saves as usual.</summary>
+        public void RestoreProgress(EntryProgress[] saved)
+        {
+            for (int i = 0; i < entries.Count && i < saved.Length; i++)
+            {
+                FishIndexEntry e = entries[i];
+                e.Discovered = saved[i].Discovered;
+                e.TimesCaught = saved[i].TimesCaught;
+                e.Known = saved[i].Known;
+                e.FirstSpot = saved[i].FirstSpot;
+                e.FirstTime = saved[i].FirstTime;
+                e.FirstWeather = saved[i].FirstWeather;
+            }
+            Raise();
+        }
+
+        /// <summary>Marks every fish found and every preference worked out. No toasts, not saved.</summary>
+        public void UnlockAll()
+        {
+            for (int i = 0; i < entries.Count; i++)
+            {
+                FishIndexEntry e = entries[i];
+                if (!e.Discovered)
+                {
+                    e.Discovered = true;
+                    e.TimesCaught = Mathf.Max(1, e.TimesCaught);
+                    e.FirstSpot = (e.Species.allowedSpotIds != null && e.Species.allowedSpotIds.Length > 0)
+                        ? e.Species.allowedSpotIds[0] : "Bay";
+                    e.FirstTime = e.Species.profile.time;
+                    e.FirstWeather = e.Species.profile.weather;
+                }
+
+                for (int k = 0; k < FishInfoText.AllFactors.Length; k++)
+                {
+                    KnownFactors f = FishInfoText.AllFactors[k];
+                    if (FishInfoText.HasWeight(f, e.Species.profile)) e.Known |= f;
+                }
+            }
+            Raise();
+        }
+
         /// <summary>Forgets all progress (and the saved file).</summary>
         public void ClearProgress()
         {
