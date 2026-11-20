@@ -13,7 +13,8 @@ namespace Tidebook.Ui
 {
     public static class BaitArt
     {
-        static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
+        // Flyweight: one shared sprite per lure / swatch / icon, however many times the UI asks for it.
+        static readonly SpriteCache<string> cache = new SpriteCache<string>("Bait sprites");
 
         // a wavy "worm" centre line, computed once
         static readonly float[] WormX = new float[30];
@@ -41,9 +42,9 @@ namespace Tidebook.Ui
         static Sprite Cached(string key, int size, int samples, PixelPainter.Shader shader)
         {
             Sprite sprite;
-            if (cache.TryGetValue(key, out sprite) && sprite != null) return sprite;
+            if (cache.TryGet(key, out sprite)) return sprite;
             sprite = PixelPainter.ToSprite(PixelPainter.Paint(size, size, samples, shader), 100f);
-            cache[key] = sprite;
+            cache.Add(key, sprite);
             return sprite;
         }
 

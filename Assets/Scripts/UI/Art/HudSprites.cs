@@ -9,7 +9,8 @@ namespace Tidebook.Ui
 {
     public static class HudSprites
     {
-        static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
+        // Flyweight: each HUD picture is painted once and shared.
+        static readonly SpriteCache<string> cache = new SpriteCache<string>("HUD sprites");
         static readonly Color Clear = new Color(0f, 0f, 0f, 0f);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -21,9 +22,9 @@ namespace Tidebook.Ui
         static Sprite Make(string key, int width, int height, int samples, PixelPainter.Shader shader)
         {
             Sprite sprite;
-            if (cache.TryGetValue(key, out sprite) && sprite != null) return sprite;
+            if (cache.TryGet(key, out sprite)) return sprite;
             sprite = PixelPainter.ToSprite(PixelPainter.Paint(width, height, samples, shader), 100f);
-            cache[key] = sprite;
+            cache.Add(key, sprite);
             return sprite;
         }
 

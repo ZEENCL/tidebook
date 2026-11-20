@@ -9,25 +9,25 @@ namespace Tidebook.Ui
 {
     public static class ProceduralSprites
     {
-        static readonly Dictionary<int, Sprite> rounded = new Dictionary<int, Sprite>();
-        static readonly Dictionary<string, Sprite> gradients = new Dictionary<string, Sprite>();
-        static Sprite circle;
-        static Sprite softCircle;
+        // Flyweight: one shared sprite per radius / gradient / shape. Panels and buttons only differ in
+        // their extrinsic state (size, tint), which each Image keeps for itself.
+        static readonly SpriteCache<int> rounded = new SpriteCache<int>("Rounded sprites");
+        static readonly SpriteCache<string> gradients = new SpriteCache<string>("Gradient sprites");
+        static readonly SpriteCache<string> shapes = new SpriteCache<string>("Shape sprites");
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             rounded.Clear();
             gradients.Clear();
-            circle = null;
-            softCircle = null;
+            shapes.Clear();
         }
 
         /// <summary>A white rounded rectangle, 9-sliced so it can be any size. Tint it with Image.color.</summary>
         public static Sprite Rounded(int radius)
         {
             Sprite sprite;
-            if (rounded.TryGetValue(radius, out sprite) && sprite != null) return sprite;
+            if (rounded.TryGet(radius, out sprite)) return sprite;
 
             int size = radius * 2 + 4;
             Texture2D tex = PixelPainter.Paint(size, size, 1, delegate(float x, float y)
@@ -37,7 +37,7 @@ namespace Tidebook.Ui
             });
 
             sprite = PixelPainter.ToSliced(tex, radius + 1);
-            rounded[radius] = sprite;
+            rounded.Add(radius, sprite);
             return sprite;
         }
 
@@ -46,7 +46,7 @@ namespace Tidebook.Ui
         {
             string key = radius + "|" + ColorUtility.ToHtmlStringRGBA(top) + "|" + ColorUtility.ToHtmlStringRGBA(bottom);
             Sprite sprite;
-            if (gradients.TryGetValue(key, out sprite) && sprite != null) return sprite;
+            if (gradients.TryGet(key, out sprite)) return sprite;
 
             int width = radius * 2 + 4;
             int height = radius * 2 + 64;
@@ -59,7 +59,7 @@ namespace Tidebook.Ui
             });
 
             sprite = PixelPainter.ToSliced(tex, radius + 1);
-            gradients[key] = sprite;
+            gradients.Add(key, sprite);
             return sprite;
         }
 
@@ -76,7 +76,8 @@ namespace Tidebook.Ui
 
         public static Sprite Circle()
         {
-            if (circle != null) return circle;
+            Sprite sprite;
+            if (shapes.TryGet("circle", out sprite)) return sprite;
 
             const int size = 128;
             Texture2D tex = PixelPainter.Paint(size, size, 1, delegate(float x, float y)
@@ -87,14 +88,16 @@ namespace Tidebook.Ui
                 return new Color(1f, 1f, 1f, Mathf.Clamp01(size * 0.5f - 0.5f - dist + 0.5f));
             });
 
-            circle = PixelPainter.ToSprite(tex, 100f);
-            return circle;
+            sprite = PixelPainter.ToSprite(tex, 100f);
+            shapes.Add("circle", sprite);
+            return sprite;
         }
 
         /// <summary>A white radial falloff, handy for glows and soft ground shadows.</summary>
         public static Sprite SoftCircle()
         {
-            if (softCircle != null) return softCircle;
+            Sprite sprite;
+            if (shapes.TryGet("soft", out sprite)) return sprite;
 
             const int size = 128;
             Texture2D tex = PixelPainter.Paint(size, size, 1, delegate(float x, float y)
@@ -105,8 +108,9 @@ namespace Tidebook.Ui
                 return new Color(1f, 1f, 1f, t * t);
             });
 
-            softCircle = PixelPainter.ToSprite(tex, 100f);
-            return softCircle;
+            sprite = PixelPainter.ToSprite(tex, 100f);
+            shapes.Add("soft", sprite);
+            return sprite;
         }
     }
 }

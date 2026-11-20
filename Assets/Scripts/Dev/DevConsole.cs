@@ -49,6 +49,9 @@ namespace Tidebook.Dev
             // Commands about the history itself.
             if (name == "help" || name == "?") return new DevResult(true, HelpText());
 
+            // Read-only report (not a command that changes anything, so it stays out of the undo history).
+            if (name == "flyweights") return new DevResult(true, FlyweightRegistry.Report());
+
             if (name == "undo")
             {
                 ICommand undone = history.Undo();
@@ -87,6 +90,7 @@ namespace Tidebook.Dev
             for (int i = 0; i < registry.All.Count; i++)
                 text += "\n  " + registry.All[i].Usage + "  -  " + registry.All[i].Help;
             text += "\n  undo / redo  -  take back or re-apply the last command";
+            text += "\n  flyweights  -  how many shared objects exist and how often they were reused";
             text += "\n  clear  -  empty this window";
             return text;
         }
